@@ -3,16 +3,13 @@ package detector
 import org.apache.spark.sql.DataFrameReader
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan, RelationProvider, DataSourceRegister, SchemaRelationProvider}
-import org.apache.spark.sql.types.{StringType, StructField, StructType, DoubleType}
+import org.apache.spark.sql.types.{StringType, StructField, StructType, FloatType}
 import org.apache.spark.sql.{Row, SQLContext}
-import com.github.chen0040.objdetect.models.DetectedObj
-import com.github.chen0040.objdetect.ObjectDetector
+import mvrpl.tensorflow.objdetect.ObjectDetector
 import javax.imageio.ImageIO
 import java.awt.image.BufferedImage
-import java.io.File
-import java.util.List
-import scala.collection.JavaConversions._
 import java.io.ByteArrayInputStream
+import scala.collection.JavaConverters._
 
 class DetectorRelation(location: String, userSchema: StructType, parallelize: Int)(@transient val sqlContext: SQLContext) extends BaseRelation with TableScan with Serializable {
 	override def schema: StructType = {
@@ -23,23 +20,21 @@ class DetectorRelation(location: String, userSchema: StructType, parallelize: In
 			return StructType(Seq(
 				StructField("file_name", StringType, true), 
 				StructField("object", StringType, true), 
-				StructField("score", DoubleType, true)
+				StructField("score", FloatType, true)
 			))
 		}
 	}
 
 	override def buildScan(): RDD[Row] = {
-		val detector = new ObjectDetector()
-    	detector.loadModel
-		sqlContext.sparkContext.binaryFiles(location, parallelize).flatMap{case (fileName, content) =>
-			val img = ImageIO.read(new ByteArrayInputStream(content.toArray()))
-    		val result = detector.detectObjects(img)
+		sqlContext.sparkContext.binaryFiles(location).repartition(parallelize).flatMap{case (fileName, content) =>
+			val detector = new ObjectDetector()
+    		detector.loadModel
+			val img: BufferedImage = ImageIO.read(new ByteArrayInputStream(content.toArray))
+    		val result = detector.detectObjects(img).asScala
 			for {
-				data <- result.toList
-				dataObj = data.toString
-				dataMap = dataObj.substring(1, dataObj.length - 1).trim.split(",").map(_.split(":")).take(2).map{case Array(k, v) => (k.trim,v.trim)}.toMap
-				objectName = dataMap.get("label").get
-				score = dataMap.get("score").get.toDouble
+				data <- result
+				objectName = data.getLabel
+				score = data.getScore
 			} yield Row(fileName, objectName, score)
 		}
 	}
