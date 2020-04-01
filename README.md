@@ -10,7 +10,7 @@
 https://github.com/mvrpl/Spark_DataSources/tree/TensorFlow
 
 ### Blog Post
-https://mvrpl.dev/pt-br/post/spark_scala-detec%C3%A7%C3%A3o-de-objetos-em-imagens-com-tensorflow
+https://mvrpl.dev/post/spark_scala-detec%C3%A7%C3%A3o-de-objetos-em-imagens-com-tensorflow
 
 ### Credits
 https://github.com/chen0040/java-ssd-object-detection
@@ -25,4 +25,4 @@ https://github.com/chen0040/java-ssd-object-detection
 https://github.com/mvrpl/Spark_DataSources/tree/HTML
 
 ### Blog Post
-https://mvrpl.dev/pt-br/post/spark_scala-criando-nova-fonte-de-dados
+https://mvrpl.dev/post/spark_scala-criando-nova-fonte-de-dados
