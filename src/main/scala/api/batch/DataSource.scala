@@ -10,7 +10,7 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
 import scala.collection.JavaConverters._
 
-class ApiRelation(urls: Array[String], options: Map[String, String], userSchema: StructType, numPartitions: Int = 10)(@transient val sqlContext: SQLContext) extends BaseRelation with TableScan with Serializable {
+class ApiRelation(url: String, options: Map[String, String], userSchema: StructType)(@transient val sqlContext: SQLContext) extends BaseRelation with TableScan with Serializable {
 	override def schema: StructType = {
 		if (this.userSchema != null) {
 			return this.userSchema
@@ -25,18 +25,18 @@ class ApiRelation(urls: Array[String], options: Map[String, String], userSchema:
 	override def buildScan(): RDD[Row] = {
 		implicit val formats: Formats = DefaultFormats
 
-		val method = options("method")
-
         val headers = JsonMethods.parse(options.getOrElse("headers", "{}").toString).noNulls.extract[Map[String, String]]
         val data = JsonMethods.parse(options.getOrElse("data", "{}").toString).noNulls.extract[Map[String, String]]
         val cookies = JsonMethods.parse(options.getOrElse("cookies", "{}").toString).noNulls.extract[Map[String, String]].map{case (k: String, v: String) =>
 			k -> HttpCookie.parse(v).asScala.head
 		}
-        val params = JsonMethods.parse(options.getOrElse("params", "{}").toString).noNulls.extract[Map[String, String]]
+        val params = JsonMethods.parse(options.getOrElse("params", "[]").toString).noNulls.extract[Seq[Map[String, String]]]
 
-		sqlContext.sparkContext.parallelize(urls, numPartitions).mapPartitions(partition => {
-			partition.map(url => {
-				val r = requests.send(method)(url, headers = headers, data = data, cookies = cookies, params = params)
+        val method = options.getOrElse("method", "GET")
+
+		sqlContext.sparkContext.parallelize(params, options.getOrElse("numPartitions", "1").toInt).mapPartitions(partition => {
+			partition.map(urlParams => {
+				val r = requests.send(method)(url, headers = headers, data = data, cookies = cookies, params = urlParams)
 				Row(r.text)
 			})
 		})
@@ -50,8 +50,8 @@ class DefaultSource extends RelationProvider with SchemaRelationProvider with Da
 		createRelation(sqlContext, parameters, null)
 	}
 	override def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
-		val urls = parameters.getOrElse("path", sys.error("lista de URLs deve ser especificado.")).split(",")
-		new ApiRelation(urls, parameters.filterNot(_._1 == "path"), schema)(sqlContext)
+		val url = parameters.getOrElse("path", sys.error("path deve ser especificado."))
+		new ApiRelation(url, parameters, schema)(sqlContext)
 	}
 }
 

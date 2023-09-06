@@ -17,8 +17,8 @@ class DefaultSource extends StreamSourceProvider with SchemaRelationProvider wit
 	}
 
 	def createRelation(sqlContext: SQLContext, parameters: Map[String, String], schema: StructType): BaseRelation = {
-		val urls = parameters.getOrElse("path", sys.error("lista de URLs deve ser especificado.")).split(",")
-		new ApiRelation(urls, parameters.filterNot(_._1 == "path"), schema)(sqlContext)
+		val url = parameters.getOrElse("path", sys.error("path deve ser especificado."))
+		new ApiRelation(url, parameters, schema)(sqlContext)
 	}
 
     override def sourceSchema(sqlContext: SQLContext, schema: Option[StructType], providerName: String, parameters: Map[String,String]): (String, StructType) = {
