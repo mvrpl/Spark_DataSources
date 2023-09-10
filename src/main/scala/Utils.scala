@@ -88,9 +88,9 @@ object UtilFuncs {
         val reqLoc = ccToMap(newConf).get(newConf.paginatorAttr.get("reqLocation").get).get.asInstanceOf[Map[String, String]]
         val actualVal = reqLoc.getOrElse(newConf.paginatorAttr.get("attrName").get, "")
         val newVal = newConf.paginatorAttr.get("type").get match {
-          case "increment" => (actualVal.toLong + 1).toString
+          case "increment" => (actualVal.toLong + newConf.paginatorAttr.getOrElse("incStep", "1").toLong).toString
           case "value" => paginator
-          case _ => throw new Exception("only 'increment' available")
+          case _ => throw new Exception("paginatorAttr.type only 'increment|value' available")
         }
         val objConfs = newConf.copy(
           headers = newConf.paginatorAttr.get("reqLocation").get match {
