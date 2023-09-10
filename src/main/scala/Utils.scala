@@ -44,12 +44,15 @@ object UtilFuncs {
         case "ciphers" => acc.withCiphers(act._2.split("::"):_*)
         case "protocols" => acc.withProtocols(act._2.split("::"):_*)
         case "identityMaterial" => acc.withIdentityMaterial(
-          Paths.get(act._2), conf.getOrElse("identityPassword", "").toCharArray, "jks"
+          Paths.get(act._2), conf.getOrElse("identityPassword", "").toCharArray,
+          conf.getOrElse("identityType", "PKCS12")
         )
         case "trustMaterial" => acc.withTrustMaterial(
-          Paths.get(act._2), conf.getOrElse("trustPassword", "").toCharArray, "jks"
+          Paths.get(act._2), conf.getOrElse("trustPassword", "").toCharArray,
+          conf.getOrElse("trustType", "PKCS12")
         )
         case "secureRandom" => acc.withSecureRandom(new SecureRandom(act._2.getBytes))
+        case _ => acc
       }
     }
     sslFactory.build().getSslContext
@@ -96,7 +99,9 @@ object UtilFuncs {
         autoDecompress = newConf.autoDecompress,
         maxRedirects = newConf.maxRedirects,
         verifySslCerts = newConf.verifySslCerts,
-        sslContext = buildSSLCtx(newConf.sslContext),
+        sslContext = if (newConf.sslContext.keys.toArray.contains("identityMaterial") || newConf.sslContext.keys.toArray.contains("trustMaterial")) {
+          buildSSLCtx(newConf.sslContext) 
+        } else null,
         proxy = newConf match {
           case pc if pc.proxyHost != null && pc.proxyPort != 0 => (pc.proxyHost, pc.proxyPort)
           case _ => null
