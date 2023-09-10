@@ -47,7 +47,7 @@ object UtilFuncs {
       newConf = JsonMethods.parse(incomeChan).noNulls.extract[models.ApiExtractorConf]
     }
 
-    val fullUrl = s"""${url}/${newConf.endpoint.stripPrefix("/")}""".stripSuffix("/")
+    val fullUrl = s"""${url}/${newConf.endpoint.stripPrefix("/")}"""
 
     var r: requests.Response = null
 
