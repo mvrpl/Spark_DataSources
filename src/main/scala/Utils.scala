@@ -3,16 +3,23 @@ package utils
 import org.apache.spark.sql.Row
 import org.apache.spark.SparkContext
 import org.apache.spark.broadcast.Broadcast
-import scala.reflect.ClassTag
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
-import com.jayway.jsonpath.JsonPath
-import scala.reflect.runtime.currentMirror
-import scala.tools.reflect.ToolBox
-import java.net.HttpCookie
+
+import nl.altindag.ssl.SSLFactory
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.json4s.{DefaultFormats, Formats}
+import com.jayway.jsonpath.JsonPath
+
+import scala.reflect.runtime.currentMirror
+import scala.tools.reflect.ToolBox
+import scala.util.Try
+import scala.reflect.ClassTag
+
 import java.util.concurrent.{TimeUnit, LinkedTransferQueue}
+import java.nio.file.Paths
+import java.net.HttpCookie
+import javax.net.ssl.SSLContext
 
 object Eval {
   def apply[A](string: String): A = {
@@ -27,6 +34,23 @@ object UtilFuncs {
     (a, f) =>
     f.setAccessible(true)
     a + (f.getName -> f.get(cc))
+  }
+
+  def buildSSLCtx(conf: Map[String, String]): SSLContext = {
+    val sslFactory = SSLFactory.builder()
+    conf.foldLeft(sslFactory){case (acc: SSLFactory.Builder, act: (String, String)) => 
+      act._1 match {
+        case "ciphers" => acc.withCiphers(act._2.split("::"):_*)
+        case "protocols" => acc.withProtocols(act._2.split("::"):_*)
+        case "identityMaterial" => acc.withIdentityMaterial(
+          Paths.get(act._2), conf.getOrElse("identityPassword", "").toCharArray
+        )
+        case "trustMaterial" => acc.withTrustMaterial(
+          Paths.get(act._2), conf.getOrElse("trustPassword", "").toCharArray
+        )
+      }
+    }
+    sslFactory.build().getSslContext
   }
 
   def mkRequest(
@@ -56,10 +80,25 @@ object UtilFuncs {
         fullUrl,
         headers = newConf.headers,
         data = newConf.data,
-        cookies = newConf.cookies,
+        cookies = newConf.cookies.map{case (k: String, v: String) =>
+          k -> HttpCookie.parse(v).get(0)
+        },
         params = newConf.params,
         readTimeout = newConf.readTimeoutMili,
-        connectTimeout = newConf.connectTimeoutMili
+        connectTimeout = newConf.connectTimeoutMili,
+        compress = newConf.compress.toLowerCase match {
+          case "gzip" => requests.Compress.Gzip
+          case "deflate" => requests.Compress.Deflate
+          case _ => requests.Compress.None
+        },
+        autoDecompress = newConf.autoDecompress,
+        maxRedirects = newConf.maxRedirects,
+        verifySslCerts = newConf.verifySslCerts,
+        sslContext = buildSSLCtx(newConf.sslContext),
+        proxy = newConf match {
+          case pc if pc.proxyHost != null && pc.proxyPort != 0 => (pc.proxyHost, pc.proxyPort)
+          case _ => null
+        }
       )
     } catch {
       case e: requests.RequestFailedException => {
@@ -78,20 +117,25 @@ object UtilFuncs {
 
     if (!newConf.paginator.isEmpty) {
       val keyPage = newConf.paginator.getOrElse("key", "$")
-      val paginator = scala.util.Try(JsonPath.read[Any](result, keyPage).toString).getOrElse("null")
+      val paginator = Try(JsonPath.read[Any](result, keyPage).toString).getOrElse("null")
 
       hasNext = Eval[Boolean](
         s""""${paginator}" ${newConf.paginator.get("validationFilter").get}"""
       )
 
       if (hasNext) {
-        val reqLoc = ccToMap(newConf).get(newConf.paginatorAttr.get("reqLocation").get).get.asInstanceOf[Map[String, String]]
+        val reqLoc = ccToMap(newConf).get(newConf.paginatorAttr.get("reqLocation").get).get match {
+          case rl if rl.isInstanceOf[String] => Map("endpoint" -> rl.asInstanceOf[String])
+          case rl if rl.isInstanceOf[Map[String, String]] => rl.asInstanceOf[Map[String, String]]
+          case _ => throw new Exception("paginatorAttr.reqLocation only 'string|map<string,string>' available")
+        }
         val actualVal = reqLoc.getOrElse(newConf.paginatorAttr.get("attrName").get, "")
         val newVal = newConf.paginatorAttr.get("type").get match {
           case "increment" => (actualVal.toLong + newConf.paginatorAttr.getOrElse("incStep", "1").toLong).toString
           case "value_inc" => (paginator.toLong + newConf.paginatorAttr.getOrElse("incStep", "1").toLong).toString
           case "value" => paginator
-          case _ => throw new Exception("paginatorAttr.type only 'increment|value|value_inc' available")
+          case "eval" => Eval[String](s""""${actualVal}"${newConf.paginatorAttr.getOrElse("eval", "")}""")
+          case _ => throw new Exception("paginatorAttr.type only 'increment|value|value_inc|eval' available")
         }
         val objConfs = newConf.copy(
           headers = newConf.paginatorAttr.get("reqLocation").get match {
@@ -105,6 +149,10 @@ object UtilFuncs {
           params = newConf.paginatorAttr.get("reqLocation").get match {
             case "params" => newConf.params ++ Map(newConf.paginatorAttr.get("attrName").get -> newVal)
             case _ => newConf.params
+          },
+          cookies = newConf.paginatorAttr.get("reqLocation").get match {
+            case "cookies" => newConf.cookies ++ Map(newConf.paginatorAttr.get("attrName").get -> newVal)
+            case _ => newConf.cookies
           },
           endpoint = newConf.paginatorAttr.get("reqLocation").get match {
             case "endpoint" => newVal
