@@ -26,7 +26,7 @@ class ApiRelation(url: String, options: Map[String, String], userSchema: StructT
 	override def buildScan(): RDD[Row] = {
 		implicit val formats: Formats = DefaultFormats
 
-		val source = Source.fromFile("request_confs.json")
+		val source = Source.fromFile(options.getOrElse("conf_file", "request_confs.json"))
 		val lines = try source.mkString finally source.close
 		val conf = JsonMethods.parse(lines).noNulls.extract[models.ApiExtractorConf]
 
