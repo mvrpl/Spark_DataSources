@@ -19,6 +19,7 @@ import scala.reflect.ClassTag
 import java.util.concurrent.{TimeUnit, LinkedTransferQueue}
 import java.nio.file.Paths
 import java.net.HttpCookie
+import java.security.SecureRandom
 import javax.net.ssl.SSLContext
 
 object Eval {
@@ -43,11 +44,12 @@ object UtilFuncs {
         case "ciphers" => acc.withCiphers(act._2.split("::"):_*)
         case "protocols" => acc.withProtocols(act._2.split("::"):_*)
         case "identityMaterial" => acc.withIdentityMaterial(
-          Paths.get(act._2), conf.getOrElse("identityPassword", "").toCharArray
+          Paths.get(act._2), conf.getOrElse("identityPassword", "").toCharArray, "jks"
         )
         case "trustMaterial" => acc.withTrustMaterial(
-          Paths.get(act._2), conf.getOrElse("trustPassword", "").toCharArray
+          Paths.get(act._2), conf.getOrElse("trustPassword", "").toCharArray, "jks"
         )
+        case "secureRandom" => acc.withSecureRandom(new SecureRandom(act._2.getBytes))
       }
     }
     sslFactory.build().getSslContext
