@@ -13,8 +13,7 @@
     },
     "paginator": {
         "key": "$.pagination.has_next_page",
-        "type": "Boolean",
-        "validationFilter": "== true"
+        "validationFilter": "== \"true\""
     },
     "connectTimeoutMili": 5000,
     "readTimeoutMili": 3000,

@@ -81,14 +81,15 @@ object UtilFuncs {
       val paginator = scala.util.Try(JsonPath.read[Any](result, keyPage).toString).getOrElse("null")
 
       hasNext = Eval[Boolean](
-        s"""${paginator} ${newConf.paginator.get("validationFilter").get}"""
+        s""""${paginator}" ${newConf.paginator.get("validationFilter").get}"""
       )
 
       if (hasNext) {
         val reqLoc = ccToMap(newConf).get(newConf.paginatorAttr.get("reqLocation").get).get.asInstanceOf[Map[String, String]]
-        val actualVal = reqLoc.get(newConf.paginatorAttr.get("attrName").get).get
+        val actualVal = reqLoc.getOrElse(newConf.paginatorAttr.get("attrName").get, "")
         val newVal = newConf.paginatorAttr.get("type").get match {
           case "increment" => (actualVal.toLong + 1).toString
+          case "value" => paginator
           case _ => throw new Exception("only 'increment' available")
         }
         val objConfs = newConf.copy(
