@@ -1,0 +1,23 @@
+{
+    "requestMethod": "GET",
+    "params": {
+        "page": "1"
+    },
+    "endpoint": "v4/anime",
+    "numPartitions": 3,
+    "numValues": 800,
+    "paginatorAttr": {
+        "type": "increment",
+        "reqLocation": "params",
+        "attrName": "page"
+    },
+    "paginator": {
+        "key": "$.pagination.has_next_page",
+        "type": "Boolean",
+        "validationFilter": "== true"
+    },
+    "connectTimeoutMili": 5000,
+    "readTimeoutMili": 3000,
+    "waitMili": 3001,
+    "waitChanSec": 25
+}

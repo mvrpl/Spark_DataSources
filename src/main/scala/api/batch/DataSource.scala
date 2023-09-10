@@ -8,7 +8,8 @@ import org.apache.spark.sql.{Row, SQLContext}
 import java.net.HttpCookie
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
-import scala.collection.JavaConverters._
+import collection.mutable.ArrayBuffer
+import scala.io.Source
 
 class ApiRelation(url: String, options: Map[String, String], userSchema: StructType)(@transient val sqlContext: SQLContext) extends BaseRelation with TableScan with Serializable {
 	override def schema: StructType = {
@@ -25,21 +26,13 @@ class ApiRelation(url: String, options: Map[String, String], userSchema: StructT
 	override def buildScan(): RDD[Row] = {
 		implicit val formats: Formats = DefaultFormats
 
-        val headers = JsonMethods.parse(options.getOrElse("headers", "{}").toString).noNulls.extract[Map[String, String]]
-        val data = JsonMethods.parse(options.getOrElse("data", "{}").toString).noNulls.extract[Map[String, String]]
-        val cookies = JsonMethods.parse(options.getOrElse("cookies", "{}").toString).noNulls.extract[Map[String, String]].map{case (k: String, v: String) =>
-			k -> HttpCookie.parse(v).asScala.head
-		}
-        val params = JsonMethods.parse(options.getOrElse("params", "[]").toString).noNulls.extract[Seq[Map[String, String]]]
+		val source = Source.fromFile("request_confs.json")
+		val lines = try source.mkString finally source.close
+		val conf = JsonMethods.parse(lines).noNulls.extract[models.ApiExtractorConf]
 
-        val method = options.getOrElse("method", "GET")
+		val args = models.IterArgs(conf, url)
 
-		sqlContext.sparkContext.parallelize(params, options.getOrElse("numPartitions", "1").toInt).mapPartitions(partition => {
-			partition.map(urlParams => {
-				val r = requests.send(method)(url, headers = headers, data = data, cookies = cookies, params = urlParams)
-				Row(r.text)
-			})
-		})
+		new utils.CreateRDD(sqlContext.sparkContext, conf.numPartitions, conf.numValues, args)
 	}
 }
 
