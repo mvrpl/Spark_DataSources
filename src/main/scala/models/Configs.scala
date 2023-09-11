@@ -2,7 +2,7 @@ package models
 
 case class ApiExtractorConf (
     headers: Map[String, String] = Map.empty[String, String],
-    data: Map[String, String] = Map.empty[String, String],
+    data: Either[String, Map[String, String]] = Left(""),
     cookies: Map[String, String] = Map.empty[String, String],
     params: Map[String, String] = Map.empty[String, String],
     endpoint: String = "",

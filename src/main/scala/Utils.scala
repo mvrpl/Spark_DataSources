@@ -84,7 +84,10 @@ object UtilFuncs {
       r = requests.send(newConf.requestMethod)(
         fullUrl,
         headers = newConf.headers,
-        data = newConf.data,
+        data = newConf.data match {
+          case Left(str) => str
+          case Right(map) => map
+        },
         cookies = newConf.cookies.map{case (k: String, v: String) =>
           k -> HttpCookie.parse(v).get(0)
         },
@@ -141,7 +144,7 @@ object UtilFuncs {
           case "increment" => (actualVal.toLong + newConf.paginatorAttr.getOrElse("incStep", "1").toLong).toString
           case "value_inc" => (paginator.toLong + newConf.paginatorAttr.getOrElse("incStep", "1").toLong).toString
           case "value" => paginator
-          case "eval" => Eval[String](s""""${actualVal}"${newConf.paginatorAttr.getOrElse("eval", "")}""")
+          case "eval" => Eval[String](s"""val actVal = "${actualVal}"""" ++ newConf.paginatorAttr.getOrElse("eval", ""))
           case _ => throw new Exception("paginatorAttr.type only 'increment|value|value_inc|eval' available")
         }
         val objConfs = newConf.copy(
@@ -150,7 +153,10 @@ object UtilFuncs {
             case _ => newConf.headers
           },
           data = newConf.paginatorAttr.get("reqLocation").get match {
-            case "data" => newConf.data ++ Map(newConf.paginatorAttr.get("attrName").get -> newVal)
+            case "data" => newConf.data match {
+              case Left(d) => Left(newVal)
+              case Right(d) => Right(d ++ Map(newConf.paginatorAttr.get("attrName").get -> newVal))
+            }
             case _ => newConf.data
           },
           params = newConf.paginatorAttr.get("reqLocation").get match {
